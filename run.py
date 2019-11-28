@@ -3,6 +3,7 @@
 import gym
 import random
 from Settings import Settings
+from Agent import *
 
 """
 Landing pad is always at coordinates (0,0).
@@ -19,13 +20,17 @@ Four discrete actions available: do nothing, fire left orientation engine, fire 
 def main():
     env = gym.make("LunarLander-v2")
     s = Settings(env)
+    agent = Agent()
 
     for i in range(s.episodes):
         done = False
         state = env.reset()
 
         while not done:
-            action = random.randint(0, s.num_actions-1)
+            if s.epsilon > random.random():
+                action = random.randint(0, s.num_actions-1)
+            else:
+
 
             new_state, reward, done, info = env.step(action)
             print(new_state)
