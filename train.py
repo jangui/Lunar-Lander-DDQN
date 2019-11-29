@@ -21,9 +21,9 @@ Four discrete actions available: do nothing, fire left orientation engine, fire 
 """
 
 def handle_stats_and_save(agent, episode, episode_rewards, s):
-    min_reward = round(np.min(episode_rewards[-s.stats_period:]), 1)
-    max_reward = round(np.max(episode_rewards[-s.stats_period:]), 1)
-    avg_reward = round(np.sum(episode_rewards[-s.stats_period:])/s.stats_period, 1)
+    min_reward = int(round(np.min(episode_rewards[-s.stats_period:]), 0))
+    max_reward = int(round(np.max(episode_rewards[-s.stats_period:]), 0))
+    avg_reward = int(round(np.sum(episode_rewards[-s.stats_period:])/s.stats_period, 0))
     print(f"Episode: {episode}")
     print(f"Min Reward: {min_reward}")
     print(f"Max Reward: {max_reward}")

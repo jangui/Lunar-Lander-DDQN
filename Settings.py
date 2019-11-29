@@ -8,7 +8,7 @@ class Settings:
         ###training settings
         self.episodes = 25000
 
-        self.replay_mem_size = 5000
+        self.replay_mem_size = 50000
         self.min_replay_len = 1000
         self.batch_size = 64
 
