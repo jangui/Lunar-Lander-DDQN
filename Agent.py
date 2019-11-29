@@ -29,9 +29,9 @@ class Agent:
             return #loaded model
 
         model = Sequential()
-        model.add(Dense(64, input_shape=self.s.observation_shape))
+        model.add(Dense(16, input_shape=self.s.observation_shape))
         model.add(Activation('relu'))
-        model.add(Dropout(0.8))
+        model.add(Dropout(0.2))
 
         model.add(Dense(16))
         model.add(Activation('relu'))
