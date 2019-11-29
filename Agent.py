@@ -1,4 +1,4 @@
-from keras.models import Sequential
+from keras.models import Sequential, load_model
 from keras.layers import Dense, Activation, Dropout
 from keras.optimizers import Adam
 from Settings import Settings
@@ -7,13 +7,13 @@ import numpy as np
 import random
 
 class Agent:
-    def __init__(self, settings):
+    def __init__(self, settings, model_path=None):
         self.s = settings
         self.replay_memory = deque(maxlen=self.s.replay_mem_size)
         self.model_update_counter = 1
 
         #main model that gets trained and predicts optimal action
-        self.model = self.create_model()
+        self.model = self.create_model(model_path)
 
         #Secondary model used to predict future Q values
         #makes predicting future Q vals more stable
@@ -22,11 +22,9 @@ class Agent:
         self.stable_pred_model = self.create_model()
         self.stable_pred_model.set_weights(self.model.get_weights())
 
-    def create_model(self, load_model=None):
-        if load_model:
-            #TODO
-            #load the model
-            return #loaded model
+    def create_model(self, model_path=None):
+        if model_path:
+            return load_model(model_path)
 
         model = Sequential()
         model.add(Dense(16, input_shape=self.s.observation_shape))

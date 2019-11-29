@@ -8,11 +8,6 @@ from tqdm import tqdm
 import time
 import matplotlib.pyplot as plt
 
-def warn(*args, **kwargs):
-    pass
-import warnings
-warnings.warn = warn
-
 """
 Landing pad is always at coordinates (0,0).
 Coordinates are the first two numbers in state vector.
