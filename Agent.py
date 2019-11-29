@@ -27,16 +27,16 @@ class Agent:
             return load_model(model_path)
 
         model = Sequential()
-        model.add(Dense(16, input_shape=self.s.observation_shape))
+        model.add(Dense(256, input_shape=self.s.observation_shape))
         model.add(Activation('relu'))
         model.add(Dropout(0.2))
 
-        model.add(Dense(16))
+        model.add(Dense(128))
         model.add(Activation('relu'))
         model.add(Dropout(0.2))
 
         model.add(Dense(self.s.num_actions))
-        model.add(Activation('softmax')) #try linear later
+        model.add(Activation('linear'))
 
         model.compile(loss='mse', optimizer=Adam(lr=0.001), metrics=['accuracy'])
         return model

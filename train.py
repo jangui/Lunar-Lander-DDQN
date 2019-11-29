@@ -9,6 +9,8 @@ import time
 import matplotlib.pyplot as plt
 
 """
+From OpenAI Gym:
+
 Landing pad is always at coordinates (0,0).
 Coordinates are the first two numbers in state vector.
 Reward for moving from the top of the screen to landing pad and zero speed is about 100..140 points.
@@ -72,57 +74,73 @@ def plot_results(episode_rewards, final_stats):
 def main():
     env = gym.make("LunarLander-v2")
     s = Settings(env)
-    agent = Agent(s)
     episode_rewards = []
     final_stats = []
 
-    #loop for desired number of attempts at Lunar Lander
-    for episode in tqdm(range(1, s.episodes+1), ascii=True, unit='episode'):
-        episode_reward = 0
-        done = False
-        state = env.reset()
+    #model_name = "16-16_5000_-85max_-830min_-266avg.model"
+    #model_path = "./models/"
+    #model_path += "autosave/"
+    #model_path += model_name
+    model_path = None
+    agent = Agent(s, model_path)
 
-        #each loop is an attempt at lunar lander
-        while not done:
-            if s.epsilon > random.random():
-                #preform random action
-                #while epsilon is high more random actions will be taken
-                action = random.randint(0, s.num_actions-1)
-            else:
-                #preform action based off network prediction
-                #as episilon decays this will be the usual option
-                action = agent.get_action(state)
+    try:
+        #loop for desired number of attempts at Lunar Lander
+        for episode in tqdm(range(1, s.episodes+1), ascii=True, unit='episode'):
+            episode_reward = 0
+            done = False
+            state = env.reset()
 
-            #take action and get data back from env
-            new_state, reward, done, extra_info = env.step(action)
-            env_info = (state, action, new_state, reward, done)
-            #train model
-            agent.train(env_info)
+            #each loop is an attempt at lunar lander
+            while not done:
+                if s.epsilon > random.random():
+                    #preform random action
+                    #while epsilon is high more random actions will be taken
+                    action = random.randint(0, s.num_actions-1)
+                else:
+                    #preform action based off network prediction
+                    #as episilon decays this will be the usual option
+                    action = agent.get_action(state)
 
-            if s.render and (episode % s.render_period == 0):
-                env.render()
+                #take action and get data back from env
+                new_state, reward, done, extra_info = env.step(action)
 
-            state = new_state
-            episode_reward += reward
+                #learn to fly first (don't penalize for flying up)
+                if action == 2:
+                    reward += 0.3
 
-        #print some stats ever so often
-        episode_rewards.append(episode_reward)
-        if episode % s.stats_period == 0:
-            reward_stats = handle_stats_and_save(agent, episode, episode_rewards, s)
-            final_stats.append(reward_stats)
+                env_info = (state, action, new_state, reward, done)
+                #train model
+                agent.train(env_info)
 
-        #save model periodically just in case
-        if episode % s.save_period == 0:
-            min_reward = int(round(np.min(episode_rewards[-s.stats_period:]), 0))
-            max_reward = int(round(np.max(episode_rewards[-s.stats_period:]), 0))
-            avg_reward = int(round(np.sum(episode_rewards[-s.stats_period:])/s.stats_period, 0))
-            save_name = f"{s.model_name}_{episode}_{max_reward}max_{min_reward}min_{avg_reward}avg"
-            agent.model.save(f"models/autosave/{save_name}.model")
+                if s.render and (episode % s.render_period == 0):
+                    env.render()
 
-        #decay epsilon
-        if s.epsilon > s.min_epsilon:
-            s.epsilon *= s.epsilon_decay
-            s.epsilon = max(s.epsilon, s.min_epsilon)
+                state = new_state
+                episode_reward += reward
+
+            #print some stats ever so often
+            episode_rewards.append(episode_reward)
+            if episode % s.stats_period == 0:
+                reward_stats = handle_stats_and_save(agent, episode, episode_rewards, s)
+                final_stats.append(reward_stats)
+
+            #save model periodically just in case
+            if episode % s.save_period == 0:
+                min_reward = int(round(np.min(episode_rewards[-s.stats_period:]), 0))
+                max_reward = int(round(np.max(episode_rewards[-s.stats_period:]), 0))
+                avg_reward = int(round(np.sum(episode_rewards[-s.stats_period:])/s.stats_period, 0))
+                save_name = f"{s.model_name}_{episode}_{max_reward}max_{min_reward}min_{avg_reward}avg"
+                agent.model.save(f"models/autosave/{save_name}.model")
+
+            #decay epsilon
+            if s.epsilon > s.min_epsilon:
+                s.epsilon *= s.epsilon_decay
+                s.epsilon = max(s.epsilon, s.min_epsilon)
+
+    #if we interrupt training lets still get plots for progress so far
+    except KeyboardInterrupt:
+        pass
 
     plot_results(episode_rewards, final_stats)
     env.close()

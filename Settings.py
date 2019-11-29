@@ -6,16 +6,16 @@ class Settings:
         self.render = False
 
         ###training settings
-        self.episodes = 25000
+        self.episodes = 5000
 
-        self.replay_mem_size = 50000
+        self.replay_mem_size = 30000
         self.min_replay_len = 1000
         self.batch_size = 64
 
         self.update_pred_model_period = 5
 
         self.epsilon = 1
-        self.epsilon_decay = 0.99975
+        self.epsilon_decay = 0.9
         self.min_epsilon = 0.001
 
         self.discount = 0.99
@@ -25,10 +25,10 @@ class Settings:
         self.stats_period = self.episodes // 1000
 
         ###save settings
-        self.model_name = "16-16"
+        self.model_name = "256-128-elon.1-"
         self.save_period = self.episodes // 100
-        self.save_max = 100
-        self.save_min = -200
+        self.save_max = 110
+        self.save_min = -50
         self.save_avg = 0
 
     def load_settings(settings_json):
