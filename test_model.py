@@ -7,7 +7,7 @@ from tqdm import tqdm
 import time
 import matplotlib.pyplot as plt
 
-model_name = "16-16_165max_-878min_-323avg_1575033091.model"
+model_name = "256-128-elon.1-"
 model_path = "./models/"
 #model_path += "/autosave/"
 model_path += model_name
@@ -22,10 +22,7 @@ def main():
         done = False
         state = env.reset()
         while not done:
-            if random.randint(0,1):
-                action = agent.get_action(state)
-            else:
-                action = 0
+            action = agent.get_action(state)
 
             new_state, reward, done, extra_info = env.step(action)
 

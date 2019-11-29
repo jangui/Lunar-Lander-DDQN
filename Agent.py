@@ -57,37 +57,37 @@ class Agent:
         #build batch from replay_mem
         batch = random.sample(self.replay_memory, self.s.batch_size)
 
+        #get output from network given state as input
+        states = np.array([elem[0] for elem in batch])
+        current_q_vals = self.model.predict(states)
+        #predict future q (using other network) with new state
+        new_states = np.array([elem[2] for elem in batch])
+        future_q_vals = self.stable_pred_model.predict(new_states)
+        #NOTE: its better to predict on full batch of states at once
+        #predicting gets vectorized :)
+
         X, y = [], []
         #populate X and y with state (input (X), & q vals (output (y))
         #must alter q vals in accordance with Q learning algorith
         #network will train to fit to qvals
         #this will fit the network towards states with better rewards
         #   (taking into account future rewards while doing so)
-        for (state, action, new_state, reward, done) in batch:
-            #get output from network given state as input
-            current_q_vals = self.model.predict(state.reshape(-1, state.shape[0]))
-            current_q_vals = current_q_vals.reshape(self.s.num_actions,)
-
+        for i, (state, action, new_state, reward, done) in enumerate(batch):
             #update q vals for action taken from state appropiately
             #if finished playing (win or lose), theres no future reward
             if done:
-                current_q_vals[action] = reward
+                current_q_vals[i][action] = reward
             else:
-                #predict future q (using other network) with new state
-                future_q_vals = self.stable_pred_model.predict(new_state.reshape(-1, state.shape[0]))
-                future_q_vals = future_q_vals.reshape(self.s.num_actions,)
                 #chose best action in new state
-                optimal_future_q = np.argmax(future_q_vals)
+                optimal_future_q = np.argmax(future_q_vals[i])
 
                 #Q-learning! :)
-                current_q_vals[action] = reward + self.s.discount * optimal_future_q
+                current_q_vals[i][action] = reward + self.s.discount * optimal_future_q
 
-            #env[0]: current_state
-            X.append(env_info[0])
-            y.append(current_q_vals)
+            X.append(state)
+            y.append(current_q_vals[i])
 
-        self.model.fit(np.array(X), np.array(y), batch_size=self.s.batch_size, shuffle=False, verbose=0) #TODO callback
-
+        self.model.fit(np.array(X), np.array(y), batch_size=self.s.batch_size, shuffle=False, verbose=0)
 
         #check if time to update prediction model
         #env_info[4]: done
