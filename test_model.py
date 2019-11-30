@@ -7,9 +7,8 @@ from tqdm import tqdm
 import time
 import matplotlib.pyplot as plt
 
-model_name = "256-128-elon.1-"
-model_path = "./models/"
-#model_path += "/autosave/"
+model_name = "256-128-elon1.2-_100episode_186max_-436min_-149avg_1575080996.model"
+model_path = "./training_models/elon1.2/models/"
 model_path += model_name
 showcases = 10
 

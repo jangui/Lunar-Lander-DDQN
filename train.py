@@ -3,10 +3,12 @@
 import gym
 import random
 from Settings import Settings
-from Agent import *
-from tqdm import tqdm
+from Agent import Agent
+from tqdm import tqdm #progress bar
 import time
 import matplotlib.pyplot as plt
+import numpy as np
+import os
 
 """
 From OpenAI Gym:
@@ -26,26 +28,25 @@ def handle_stats_and_save(agent, episode, episode_rewards, s):
     min_reward = int(round(np.min(episode_rewards[-s.stats_period:]), 0))
     max_reward = int(round(np.max(episode_rewards[-s.stats_period:]), 0))
     avg_reward = int(round(np.sum(episode_rewards[-s.stats_period:])/s.stats_period, 0))
-    print(f"Episode: {episode}")
+    print(f"\nEpisode: {episode}")
     print(f"Min Reward: {min_reward}")
     print(f"Max Reward: {max_reward}")
     print(f"Avg Reward: {avg_reward}")
     print()
 
-    #save good model based off max preforming agent
-    if max_reward > s.save_max:
-        save_name = f"{s.model_name}_{max_reward}max_{min_reward}min_{avg_reward}avg_{int(time.time())}"
-        agent.model.save(f"models/{save_name}.model")
+    save_name = f"{s.model_name}_{episode}episode_{max_reward}max_"
+    save_name += f"{min_reward}min_{avg_reward}avg_{int(time.time())}"
 
+    #save good model based off max preforming agent
+    save_loc = f"{s.save_loc}{save_name}.model"
+    if max_reward > s.save_max:
+        agent.model.save(save_loc)
     #save good model based off min preforming agent
     elif min_reward > s.save_min:
-        save_name = f"{s.model_name}_{max_reward}max_{min_reward}min_{avg_reward}avg_{int(time.time())}"
-        agent.model.save(f"models/{save_name}.model")
-
+        agent.model.save(save_loc)
     #save good model based off avg of agents
     elif avg_reward > s.save_avg:
-        save_name = f"{s.model_name}_{max_reward}max_{min_reward}min_{avg_reward}avg_{int(time.time())}"
-        agent.model.save(f"models/{save_name}.model")
+        agent.model.save(save_loc)
 
     return (min_reward, max_reward, avg_reward)
 
@@ -77,12 +78,20 @@ def main():
     episode_rewards = []
     final_stats = []
 
-    #model_name = "16-16_5000_-85max_-830min_-266avg.model"
-    #model_path = "./models/"
-    #model_path += "autosave/"
-    #model_path += model_name
-    model_path = None
+    model_name = "256-128-elon1.2-_500episode_-7max_-771min_-226avg_1575081525.model"
+    model_path = "./training_models/elon1.2/models/autosave/"
+    model_path += model_name
+    #model_path = None
     agent = Agent(s, model_path)
+
+    #for saving_training_models
+    if not os.path.exists("./training_models"):
+        os.mkdir("./training_models")
+    if not os.path.exists(f"./training_models/{s.model_name}"):
+        os.mkdir(f"./training_models/{s.model_name}")
+    if not os.path.exists(f"./training_models/{s.model_name}/autosave"):
+        os.mkdir(f"./training_models/{s.model_name}/autosave")
+
 
     try:
         #loop for desired number of attempts at Lunar Lander
@@ -105,9 +114,11 @@ def main():
                 #take action and get data back from env
                 new_state, reward, done, extra_info = env.step(action)
 
+                """
                 #learn to fly first (don't penalize for flying up)
                 if action == 2:
                     reward += 0.3
+                """
 
                 env_info = (state, action, new_state, reward, done)
                 #train model
@@ -130,8 +141,11 @@ def main():
                 min_reward = int(round(np.min(episode_rewards[-s.stats_period:]), 0))
                 max_reward = int(round(np.max(episode_rewards[-s.stats_period:]), 0))
                 avg_reward = int(round(np.sum(episode_rewards[-s.stats_period:])/s.stats_period, 0))
-                save_name = f"{s.model_name}_{episode}_{max_reward}max_{min_reward}min_{avg_reward}avg"
-                agent.model.save(f"models/autosave/{save_name}.model")
+
+                save_name = f"{s.model_name}_{episode}episode_{max_reward}max_"
+                save_name += f"{min_reward}min_{avg_reward}avg_{int(time.time())}"
+                save_loc = f"{s.auto_save_loc}{save_name}.model"
+                agent.model.save(save_loc)
 
             #decay epsilon
             if s.epsilon > s.min_epsilon:
