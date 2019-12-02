@@ -1,39 +1,37 @@
 class Settings:
-    def __init__(self, env):
-        ###env settings
-        self.num_actions = env.action_space.n
-        self.observation_shape = env.observation_space.shape
-        self.render = False
-
+    def __init__(self):
         ###training settings
-        self.episodes = 500
+        self.render = False
+        self.episodes = 20000
 
-        self.replay_mem_size = 30000
+        self.replay_mem_size = 50000
         self.min_replay_len = 1000
         self.batch_size = 64
 
         self.update_pred_model_period = 5
 
-        self.epsilon = 0.5
-        self.epsilon_decay = 0.99
-        self.min_epsilon = 0.001
+        self.epsilon = 1
+        self.epsilon_decay = 0.99975
+        #self.epsilon_decay = 995
+        self.min_epsilon = 0.01
 
         self.discount = 0.99
+
+        self.early_stop_count = 10
+        self.early_stop_margin = 170
+        self.success_margin = 200
 
         ###stats settigns
         self.render_period = 100
         self.stats_period = 50
+        self.rolling_avg_min = 100
 
         ###save settings
-        self.model_name = "elon1.3"
-        #self.save_period = self.episodes
-        self.save_period = 500
-        self.save_max = 110
-        self.save_min = -50
-        self.save_avg = 0
-        self.save_loc = f"./training_models/{self.model_name}/"
-        self.auto_save_loc = f"{self.save_loc}autosave/"
+        self.model_name = "elon3.1"
+        self.save_period = 200
+        self.save_max = 250
+        self.save_min = -150
+        self.save_avg = 100
+        self.save_loc = f"./training_models/{self.model_name}/models/"
+        self.autosave_loc = f"{self.save_loc}autosave/"
 
-    def load_settings(settings_json):
-        #TODO call load settings from init to load settings from json
-        pass

@@ -7,10 +7,12 @@ import numpy as np
 import random
 
 class Agent:
-    def __init__(self, settings, model_path=None):
+    def __init__(self, num_actions, input_shape, settings, model_path=None):
         self.s = settings
+        self.num_actions = num_actions
+        self.input_shape = input_shape
         self.replay_memory = deque(maxlen=self.s.replay_mem_size)
-        self.model_update_counter = 1
+        self.model_update_counter = 0
 
         #main model that gets trained and predicts optimal action
         self.model = self.create_model(model_path)
@@ -27,15 +29,15 @@ class Agent:
             return load_model(model_path)
 
         model = Sequential()
-        model.add(Dense(256, input_shape=self.s.observation_shape))
+        model.add(Dense(512, input_shape=self.input_shape))
         model.add(Activation('relu'))
-        model.add(Dropout(0.2))
+        #model.add(Dropout(0.2))
 
-        model.add(Dense(128))
+        model.add(Dense(256))
         model.add(Activation('relu'))
-        model.add(Dropout(0.2))
+        #model.add(Dropout(0.2))
 
-        model.add(Dense(self.s.num_actions))
+        model.add(Dense(self.num_actions))
         model.add(Activation('linear'))
 
         model.compile(loss='mse', optimizer=Adam(lr=0.001), metrics=['accuracy'])
@@ -54,9 +56,15 @@ class Agent:
         if len(self.replay_memory) < self.s.min_replay_len:
             return
 
+        """
+        #if last x rewards  better than some margin, don't train
+        #   (lets not overfit)
+        if np.mean(self.replay_memory[-self.s.early_stop_count][3]) > self.s.early_stop_margin:
+            return
+        """
+
         #build batch from replay_mem
         batch = random.sample(self.replay_memory, self.s.batch_size)
-
         #get output from network given state as input
         states = np.array([elem[0] for elem in batch])
         current_q_vals = self.model.predict(states)
@@ -64,7 +72,7 @@ class Agent:
         new_states = np.array([elem[2] for elem in batch])
         future_q_vals = self.stable_pred_model.predict(new_states)
         #NOTE: its better to predict on full batch of states at once
-        #predicting gets vectorized :)
+        #   predicting gets vectorized :)
 
         X, y = [], []
         #populate X and y with state (input (X), & q vals (output (y))
@@ -72,6 +80,7 @@ class Agent:
         #network will train to fit to qvals
         #this will fit the network towards states with better rewards
         #   (taking into account future rewards while doing so)
+
         for i, (state, action, new_state, reward, done) in enumerate(batch):
             #update q vals for action taken from state appropiately
             #if finished playing (win or lose), theres no future reward
@@ -79,10 +88,11 @@ class Agent:
                 current_q_vals[i][action] = reward
             else:
                 #chose best action in new state
-                optimal_future_q = np.argmax(future_q_vals[i])
+                optimal_future_q = np.max(future_q_vals[i])
 
                 #Q-learning! :)
                 current_q_vals[i][action] = reward + self.s.discount * optimal_future_q
+
 
             X.append(state)
             y.append(current_q_vals[i])
@@ -91,9 +101,9 @@ class Agent:
 
         #check if time to update prediction model
         #env_info[4]: done
-        if env_info[4] and self.model_update_counter >= self.s.update_pred_model_period:
+        if env_info[4] and self.model_update_counter > self.s.update_pred_model_period:
             self.stable_pred_model.set_weights(self.model.get_weights())
-            self.model_update_counter = 1
+            self.model_update_counter = 0
         elif env_info[4]:
             self.model_update_counter += 1
 

@@ -2,13 +2,14 @@
 #Jaime Danguillecourt
 import gym
 import random
-from Settings import Settings
-from Agent import Agent
 from tqdm import tqdm #progress bar
 import time
-import matplotlib.pyplot as plt
 import numpy as np
-import os
+
+from Settings import Settings
+from Agent import Agent
+from Stats import *
+from Save import *
 
 """
 From OpenAI Gym:
@@ -24,74 +25,25 @@ Fuel is infinite, so an agent can learn to fly and then land on its first attemp
 Four discrete actions available: do nothing, fire left orientation engine, fire main engine, fire right orientation engine.
 """
 
-def handle_stats_and_save(agent, episode, episode_rewards, s):
-    min_reward = int(round(np.min(episode_rewards[-s.stats_period:]), 0))
-    max_reward = int(round(np.max(episode_rewards[-s.stats_period:]), 0))
-    avg_reward = int(round(np.sum(episode_rewards[-s.stats_period:])/s.stats_period, 0))
-    print(f"\nEpisode: {episode}")
-    print(f"Min Reward: {min_reward}")
-    print(f"Max Reward: {max_reward}")
-    print(f"Avg Reward: {avg_reward}")
-    print()
-
-    save_name = f"{s.model_name}_{episode}episode_{max_reward}max_"
-    save_name += f"{min_reward}min_{avg_reward}avg_{int(time.time())}"
-
-    #save good model based off max preforming agent
-    save_loc = f"{s.save_loc}{save_name}.model"
-    if max_reward > s.save_max:
-        agent.model.save(save_loc)
-    #save good model based off min preforming agent
-    elif min_reward > s.save_min:
-        agent.model.save(save_loc)
-    #save good model based off avg of agents
-    elif avg_reward > s.save_avg:
-        agent.model.save(save_loc)
-
-    return (min_reward, max_reward, avg_reward)
-
-def plot_results(episode_rewards, final_stats):
-    plt.plot(episode_rewards)
-    plt.xlabel("Episode")
-    plt.ylabel("Reward")
-    plt.title("Reward vs Episode")
-    plt.show()
-
-    min_models, max_models, avg_models = [], [], []
-    for min_r, max_r, avg_r in final_stats:
-        min_models.append(min_r)
-        max_models.append(max_r)
-        avg_models.append(avg_r)
-
-    plt.plot(min_models)
-    plt.plot(max_models)
-    plt.plot(avg_models)
-    plt.xlabel("Aggregated Episodes")
-    plt.ylabel("Reward")
-    plt.legend(['min','max','avg',], loc='upper left')
-    plt.title("Reward vs Aggregate Episodes")
-    plt.show()
-
 def main():
     env = gym.make("LunarLander-v2")
-    s = Settings(env)
-    episode_rewards = []
-    final_stats = []
+    s = Settings()
 
-    model_name = "256-128-elon1.2-_500episode_-7max_-771min_-226avg_1575081525.model"
-    model_path = "./training_models/elon1.2/models/autosave/"
+    num_actions = env.action_space.n
+    observation_space = env.observation_space.shape
+
+    episode_rewards = []
+    rewards_rolling_avg = []
+    aggr_stats_lst = []
+
+    model_path = "./training_models/elon3.0/models/"
+    model_name = "elon3.0_8650episode_330max_-228min_218avg_1575153558.model"
     model_path += model_name
     #model_path = None
-    agent = Agent(s, model_path)
+    agent = Agent(num_actions, observation_space, s, model_path)
 
-    #for saving_training_models
-    if not os.path.exists("./training_models"):
-        os.mkdir("./training_models")
-    if not os.path.exists(f"./training_models/{s.model_name}"):
-        os.mkdir(f"./training_models/{s.model_name}")
-    if not os.path.exists(f"./training_models/{s.model_name}/autosave"):
-        os.mkdir(f"./training_models/{s.model_name}/autosave")
-
+    #make folders for saving training models
+    make_save_folders(s)
 
     try:
         #loop for desired number of attempts at Lunar Lander
@@ -105,7 +57,7 @@ def main():
                 if s.epsilon > random.random():
                     #preform random action
                     #while epsilon is high more random actions will be taken
-                    action = random.randint(0, s.num_actions-1)
+                    action = random.randint(0, num_actions-1)
                 else:
                     #preform action based off network prediction
                     #as episilon decays this will be the usual option
@@ -120,43 +72,55 @@ def main():
                     reward += 0.3
                 """
 
+                #train agent
                 env_info = (state, action, new_state, reward, done)
-                #train model
                 agent.train(env_info)
 
+                #render
                 if s.render and (episode % s.render_period == 0):
                     env.render()
 
                 state = new_state
                 episode_reward += reward
 
-            #print some stats ever so often
+            ######STATS AND SAVING######
+            #add reward of each episode to list to track progress
             episode_rewards.append(episode_reward)
+
+            #store rolling avg
+            #only calc after some min amount of episodes
+            if episode > s.rolling_avg_min:
+                rewards_rolling_avg.append(np.mean(episode_rewards))
+                #if rolling avg above whats considered success, stop training
+                if rewards_rolling_avg[-1] > s.success_margin:
+                    save_model(episode_rewards, episode, agent)
+                    break
+
+            #calc & save: max, min, & avg stats of aggrated episodes
+            #size of aggregation is period of collecting stats
             if episode % s.stats_period == 0:
-                reward_stats = handle_stats_and_save(agent, episode, episode_rewards, s)
-                final_stats.append(reward_stats)
+                aggr_stats = calc_aggr_stats(episode, episode_rewards, s, display=True)
+                aggr_stats_lst.append(aggr_stats)
+
+                #save model if has good aggr stats
+                save_good_model(episode_rewards, episode,  agent)
 
             #save model periodically just in case
-            if episode % s.save_period == 0:
-                min_reward = int(round(np.min(episode_rewards[-s.stats_period:]), 0))
-                max_reward = int(round(np.max(episode_rewards[-s.stats_period:]), 0))
-                avg_reward = int(round(np.sum(episode_rewards[-s.stats_period:])/s.stats_period, 0))
-
-                save_name = f"{s.model_name}_{episode}episode_{max_reward}max_"
-                save_name += f"{min_reward}min_{avg_reward}avg_{int(time.time())}"
-                save_loc = f"{s.auto_save_loc}{save_name}.model"
-                agent.model.save(save_loc)
+            #save period defined in settings
+            autosave(episode, agent)
+            ###########################
 
             #decay epsilon
             if s.epsilon > s.min_epsilon:
                 s.epsilon *= s.epsilon_decay
                 s.epsilon = max(s.epsilon, s.min_epsilon)
 
+
     #if we interrupt training lets still get plots for progress so far
     except KeyboardInterrupt:
         pass
 
-    plot_results(episode_rewards, final_stats)
+    plot_results(episode_rewards, rewards_rolling_avg, aggr_stats_lst, s)
     env.close()
     return
 

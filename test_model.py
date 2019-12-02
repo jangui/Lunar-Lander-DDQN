@@ -7,15 +7,19 @@ from tqdm import tqdm
 import time
 import matplotlib.pyplot as plt
 
-model_name = "256-128-elon1.2-_100episode_186max_-436min_-149avg_1575080996.model"
-model_path = "./training_models/elon1.2/models/"
+model_name = "elon3.1_12350episode_311max_214min_273avg_1575262915.model"
+model_path = "./training_models/elon3.1/models/"
 model_path += model_name
 showcases = 10
 
 def main():
     env = gym.make("LunarLander-v2")
-    s = Settings(env)
-    agent = Agent(s, model_path)
+    s = Settings()
+
+    num_actions = env.action_space.n
+    observation_space = env.observation_space.shape
+
+    agent = Agent(num_actions, observation_space, s, model_path)
 
     for i in range(showcases):
         done = False
