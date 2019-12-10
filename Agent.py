@@ -31,11 +31,11 @@ class Agent:
         model = Sequential()
         model.add(Dense(512, input_shape=self.input_shape))
         model.add(Activation('relu'))
-        #model.add(Dropout(0.2))
+        model.add(Dropout(0.2))
 
         model.add(Dense(256))
         model.add(Activation('relu'))
-        #model.add(Dropout(0.2))
+        model.add(Dropout(0.2))
 
         model.add(Dense(self.num_actions))
         model.add(Activation('linear'))
@@ -55,13 +55,6 @@ class Agent:
         #then don't train yet, play more
         if len(self.replay_memory) < self.s.min_replay_len:
             return
-
-        """
-        #if last x rewards  better than some margin, don't train
-        #   (lets not overfit)
-        if np.mean(self.replay_memory[-self.s.early_stop_count][3]) > self.s.early_stop_margin:
-            return
-        """
 
         #build batch from replay_mem
         batch = random.sample(self.replay_memory, self.s.batch_size)

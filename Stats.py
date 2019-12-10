@@ -5,12 +5,14 @@ def calc_aggr_stats(episode, episode_rewards, s, display=True):
     min_reward_aggr = int(round(np.min(episode_rewards[-s.stats_period:]), 0))
     max_reward_aggr = int(round(np.max(episode_rewards[-s.stats_period:]), 0))
     avg_reward_aggr = int(round(np.mean(episode_rewards[-s.stats_period:]), 0))
+    rolling_avg = int(round(np.mean(episode_rewards), 0))
 
     if display==True:
         print(f"\nAggregate Results [Episode {episode}]")
         print(f"Min Reward: {min_reward_aggr}")
         print(f"Max Reward: {max_reward_aggr}")
         print(f"Avg Reward: {avg_reward_aggr}")
+        print(f"\nRolling Average: {rolling_avg}")
         print()
     return (min_reward_aggr, max_reward_aggr, avg_reward_aggr)
 
@@ -21,10 +23,13 @@ def plot_results(episode_rewards, rewards_rolling_avg, aggr_stats_lst, s):
     ravg_x_vals = [i for i in range(s.rolling_avg_min, len(episode_rewards))]
     plt.plot(ravg_x_vals, rewards_rolling_avg, color='red', linewidth=4.0)
 
+    success_margin = [s.success_margin for i in range(len(episode_rewards))]
+    plt.plot(success_margin, color='black', linewidth=0.5)
+
     plt.xlabel("Episode")
     plt.ylabel("Reward")
     plt.title("Reward vs Episode")
-    plt.legend(['Reward','Rolling Average'], loc='lower left')
+    plt.legend(['Reward','Rolling Average', 'Success Margin'], loc='lower left')
     plt.show()
 
     aggr_min_models, aggr_max_models, aggr_avg_models = [], [], []
@@ -33,11 +38,14 @@ def plot_results(episode_rewards, rewards_rolling_avg, aggr_stats_lst, s):
         aggr_max_models.append(max_r)
         aggr_avg_models.append(avg_r)
 
+    success_margin = [s.success_margin for i in range(len(aggr_max_models))]
+
     plt.plot(aggr_min_models)
     plt.plot(aggr_max_models)
     plt.plot(aggr_avg_models)
+    plt.plot(success_margin, color='black', linewidth=0.5)
     plt.xlabel("Aggregated Episodes")
     plt.ylabel("Reward")
-    plt.legend(['min','max','avg',], loc='lower left')
+    plt.legend(['min','max','avg','Success Margin'], loc='lower left')
     plt.title("Reward vs Aggregate Episodes")
     plt.show()

@@ -36,10 +36,11 @@ def main():
     rewards_rolling_avg = []
     aggr_stats_lst = []
 
-    model_path = "./training_models/elon3.0/models/"
-    model_name = "elon3.0_8650episode_330max_-228min_218avg_1575153558.model"
-    model_path += model_name
-    #model_path = None
+    #model_path = "./trained_models/"
+    #model_name = "elon3.1.model"
+    #model_path += model_name
+
+    model_path = None
     agent = Agent(num_actions, observation_space, s, model_path)
 
     #make folders for saving training models
@@ -67,7 +68,7 @@ def main():
                 new_state, reward, done, extra_info = env.step(action)
 
                 """
-                #learn to fly first (don't penalize for flying up)
+                #learn to fly first (don't penalize using main engine)
                 if action == 2:
                     reward += 0.3
                 """
