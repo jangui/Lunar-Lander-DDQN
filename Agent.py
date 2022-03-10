@@ -1,28 +1,61 @@
-from keras.models import Sequential, load_model
-from keras.layers import Dense, Activation, Dropout
-from keras.optimizers import Adam
-from Settings import Settings
+from tensorflow.keras.models import Sequential, load_model
+from tensorflow.keras.layers import Dense, Activation, Dropout
+from tensorflow.keras.optimizers import Adam
 from collections import deque
 import numpy as np
 import random
+from time import time
 
 class Agent:
-    def __init__(self, num_actions, input_shape, settings, model_path=None):
-        self.s = settings
+    def __init__(self, num_actions, input_shape, model_name="model", model_path=None):
+        ### model settings
+        self.model_name = model_name
         self.num_actions = num_actions
         self.input_shape = input_shape
-        self.replay_memory = deque(maxlen=self.s.replay_mem_size)
-        self.model_update_counter = 0
 
-        #main model that gets trained and predicts optimal action
+        # main model
         self.model = self.create_model(model_path)
 
-        #Secondary model used to predict future Q values
-        #makes predicting future Q vals more stable
-        #more stable bcs multiple predictions from same reference point
-        #model / reference point updated to match main model on chosen interval
-        self.stable_pred_model = self.create_model()
-        self.stable_pred_model.set_weights(self.model.get_weights())
+        # secondary model used to predict future Q values
+        self.prediction_model = self.create_model()
+        self.prediction_model.set_weights(self.model.get_weights())
+
+        ### training settings
+        self.episodes = 15000
+        self.batch_size = 64
+
+        # secondary model update settings
+        self.prediction_model_update_period = 5
+        self.update_counter = 0
+
+        # replay memory settings
+        self.replay_mem_size = 50000
+        self.min_replay_len = 1000
+        self.replay_memory = deque(maxlen=self.replay_mem_size)
+
+        # exploration settings
+        self.epsilon = 1
+        self.epsilon_decay = 0.99975
+        self.min_epsilon = 0.01
+
+        # anticipated future reward discount
+        self.discount = 0.99
+
+        # render settings
+        self.render = True
+        self.render_period = 100
+
+        # success reward margin for stopping training
+        self.success_margin = 200
+
+        ### stats & saving settigns
+        self.checkpoint_period = 50 # 50
+        self.rolling_avg_min = 25 # 25
+        self.autosave_period = 200 # 200
+        self.save_location = f"./training_models/{self.model_name}/models/"
+
+        # save model if best, avg, or worst model in a aggregation outpreform these thresholds
+        self.save_thresholds = {"best": 200, "avg": 150, "worst": 50}
 
     def create_model(self, model_path=None):
         if model_path:
@@ -40,63 +73,86 @@ class Agent:
         model.add(Dense(self.num_actions))
         model.add(Activation('linear'))
 
-        model.compile(loss='mse', optimizer=Adam(lr=0.001), metrics=['accuracy'])
+        model.compile(loss='mse', optimizer=Adam(learning_rate=0.001), metrics=['accuracy'])
         return model
 
     def get_action(self, state):
+        # get index of highest q value
         return np.argmax(self.model.predict(state.reshape(-1,state.shape[0])))
 
     def train(self, env_info):
-        #env info: (state, action, new_state, reward, done)
-        #add to replay memory
+        # env info: (state, action, new_state, reward, done)
+
+        # add env info to replay memory
         self.replay_memory.append(env_info)
 
-        #if just started to play & replay mem not long enough
-        #then don't train yet, play more
-        if len(self.replay_memory) < self.s.min_replay_len:
+        # don't start training until replay memory has some minimum training data
+        if len(self.replay_memory) < self.min_replay_len:
             return
 
-        #build batch from replay_mem
-        batch = random.sample(self.replay_memory, self.s.batch_size)
-        #get output from network given state as input
-        states = np.array([elem[0] for elem in batch])
-        current_q_vals = self.model.predict(states)
-        #predict future q (using other network) with new state
-        new_states = np.array([elem[2] for elem in batch])
-        future_q_vals = self.stable_pred_model.predict(new_states)
-        #NOTE: its better to predict on full batch of states at once
-        #   predicting gets vectorized :)
+        # build batch from replay_mem
+        batch = random.sample(self.replay_memory, self.batch_size)
 
-        X, y = [], []
+        # get get q vals for each state in batch
+        states = np.array([elem[0] for elem in batch])
+        q_vals = self.model.predict(states)
+
+        # use prediction model to predict next state's q values
+        new_states = np.array([elem[2] for elem in batch])
+        future_q_vals = self.prediction_model.predict(new_states)
+
         #populate X and y with state (input (X), & q vals (output (y))
         #must alter q vals in accordance with Q learning algorith
         #network will train to fit to qvals
         #this will fit the network towards states with better rewards
         #   (taking into account future rewards while doing so)
 
+        # array of states
+        X = []
+
+        # array of target q vals for each state
+        y = []
+
+        # iterate over each state
+        # use q learning formula to get target q vals for each state
         for i, (state, action, new_state, reward, done) in enumerate(batch):
-            #update q vals for action taken from state appropiately
-            #if finished playing (win or lose), theres no future reward
             if done:
-                current_q_vals[i][action] = reward
+                # if game over, q value is final reward
+                q_vals[i][action] = reward
             else:
-                #chose best action in new state
+                # get highest Q value for next state
                 optimal_future_q = np.max(future_q_vals[i])
 
-                #Q-learning! :)
-                current_q_vals[i][action] = reward + self.s.discount * optimal_future_q
+                # update Q values
+                q_vals[i][action] = reward + self.discount * optimal_future_q
 
 
+            # append state and updated (target) q values
             X.append(state)
-            y.append(current_q_vals[i])
+            y.append(q_vals[i])
 
-        self.model.fit(np.array(X), np.array(y), batch_size=self.s.batch_size, shuffle=False, verbose=0)
+        # fit each state to the calculated target Q value
+        self.model.fit(np.array(X), np.array(y), batch_size=self.batch_size, shuffle=False, verbose=0)
 
-        #check if time to update prediction model
-        #env_info[4]: done
-        if env_info[4] and self.model_update_counter > self.s.update_pred_model_period:
-            self.stable_pred_model.set_weights(self.model.get_weights())
-            self.model_update_counter = 0
-        elif env_info[4]:
-            self.model_update_counter += 1
+
+        # update prediction model (if appropriate) at the end of each game
+        done = env_info[4]
+        if done and self.update_counter > self.prediction_model_update_period:
+            self.prediction_model.set_weights(self.model.get_weights())
+            self.update_counter = 0
+        elif done:
+            self.update_counter += 1
+
+    def save_with_stats(self, episode, aggregate_stats):
+        # save model including the aggregate stats
+        max_reward, average_reward, min_reward = aggregate_stats
+        save_name = f"{self.model_name}_{episode}episode_{max_reward}max_"
+        save_name += f"{min_reward}min_{avg_reward}avg_{int(time())}"
+        save_location = f"{self.save_location}{save_name}.model"
+        self.model.save(save_location)
+
+    def save(self, episode):
+        save_name = f"{self.model_name}_{episode}episode_{int(time())}"
+        save_location = f"{self.save_location}{save_name}.model"
+        self.model.save(save_location)
 

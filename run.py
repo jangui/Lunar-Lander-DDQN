@@ -1,35 +1,37 @@
 #!/usr/bin/env python3
 import gym
 import random
-from Settings import Settings
-from Agent import *
+from Agent import Agent
 from tqdm import tqdm
 import time
 import matplotlib.pyplot as plt
 
-model_path = "./trained_models/"
-model_name = "elon3.1.model"
+model_name = "spacex.model"
+model_path = f"./trained_models/{model_name}"
 
-model_path += model_name
-showcases = 10
+episodes = 10
 
 def main():
     env = gym.make("LunarLander-v2")
-    s = Settings()
 
     num_actions = env.action_space.n
-    observation_space = env.observation_space.shape
+    input_shape = env.observation_space.shape
 
-    agent = Agent(num_actions, observation_space, s, model_path)
+    agent = Agent(num_actions, input_shape, model_path=model_path)
 
-    for i in range(showcases):
+    for i in range(episodes):
         done = False
         state = env.reset()
+
+        # game loop
         while not done:
+            # get action from agent
             action = agent.get_action(state)
 
+            # preform action and get info from env
             new_state, reward, done, extra_info = env.step(action)
 
+            # render and update state
             env.render()
             state = new_state
 

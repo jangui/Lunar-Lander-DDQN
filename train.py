@@ -1,15 +1,13 @@
 #!/usr/bin/env python3
-#Jaime Danguillecourt
+import os
 import gym
 import random
 from tqdm import tqdm #progress bar
 import time
 import numpy as np
 
-from Settings import Settings
 from Agent import Agent
-from Stats import *
-from Save import *
+from stats import plot_results, calc_aggr_stats
 
 """
 From OpenAI Gym:
@@ -27,44 +25,43 @@ Four discrete actions available: do nothing, fire left orientation engine, fire 
 
 def main():
     env = gym.make("LunarLander-v2")
-    s = Settings()
 
     num_actions = env.action_space.n
-    observation_space = env.observation_space.shape
+    input_shape = env.observation_space.shape
 
     episode_rewards = []
     rewards_rolling_avg = []
     aggr_stats_lst = []
 
-    #model_path = "./trained_models/"
-    #model_name = "elon3.1.model"
-    #model_path += model_name
+    model_name = "test"
 
+    #model_path = f"./trained_models/{model_name}"
     model_path = None
-    agent = Agent(num_actions, observation_space, s, model_path)
+
+    agent = Agent(num_actions, input_shape, model_path)
 
     #make folders for saving training models
-    make_save_folders(s)
+    if not os.path.exists("./training_models"):
+        os.mkdir("./training_models")
+    if not os.path.exists(f"./training_models/{model_name}"):
+        os.mkdir(f"./training_models/{model_name}")
 
     try:
-        #loop for desired number of attempts at Lunar Lander
-        for episode in tqdm(range(1, s.episodes+1), ascii=True, unit='episode'):
+        # loop for desired number of attempts at Lunar Lander
+        for episode in tqdm(range(1, agent.episodes+1), ascii=True, unit='episode'):
             episode_reward = 0
             done = False
             state = env.reset()
 
-            #each loop is an attempt at lunar lander
+            ## game loop ##
             while not done:
-                if s.epsilon > random.random():
-                    #preform random action
-                    #while epsilon is high more random actions will be taken
+                # eplison-greedy exploration
+                if agent.epsilon > random.random():
                     action = random.randint(0, num_actions-1)
                 else:
-                    #preform action based off network prediction
-                    #as episilon decays this will be the usual option
                     action = agent.get_action(state)
 
-                #take action and get data back from env
+                # take action and get data back from env
                 new_state, reward, done, extra_info = env.step(action)
 
                 """
@@ -73,57 +70,65 @@ def main():
                     reward += 0.3
                 """
 
-                #train agent
+                # train agent
                 env_info = (state, action, new_state, reward, done)
                 agent.train(env_info)
 
-                #render
-                if s.render and (episode % s.render_period == 0):
+                # render
+                if agent.render and (episode % agent.render_period == 0):
                     env.render()
 
                 state = new_state
                 episode_reward += reward
+            ## end of game loop ##
 
-            ######STATS AND SAVING######
-            #add reward of each episode to list to track progress
+            ### stats and saving ###
+            # save total reward for this episode
             episode_rewards.append(episode_reward)
 
-            #store rolling avg
-            #only calc after some min amount of episodes
-            if episode > s.rolling_avg_min:
+            # store rolling avg after a minimum of episodes have passed
+            if episode > agent.rolling_avg_min:
                 rewards_rolling_avg.append(np.mean(episode_rewards))
-                #if rolling avg above whats considered success, stop training
-                if rewards_rolling_avg[-1] > s.success_margin:
-                    save_model(episode_rewards, episode, agent)
+
+                # stop training if rolling average above success margin
+                if rewards_rolling_avg[-1] > agent.success_margin:
+                    agent.save(episode)
                     break
 
-            #calc & save: max, min, & avg stats of aggrated episodes
-            #size of aggregation is period of collecting stats
-            if episode % s.stats_period == 0:
-                aggr_stats = calc_aggr_stats(episode, episode_rewards, s, display=True)
+            # calculate stats on a batch episodes
+            if episode % agent.checkpoint_period == 0:
+                aggr_stats = calc_aggr_stats(episode, episode_rewards, agent.checkpoint_period, display=True)
                 aggr_stats_lst.append(aggr_stats)
 
-                #save model if has good aggr stats
-                save_good_model(episode_rewards, episode,  agent)
+                # save model if aggregation outpreformed the save thresholds
+                max_reward, avg_reward, min_reward = aggr_stats
+                if max_reward > agent.save_thresholds['best']:
+                    agent.save_with_stats(episode, aggr_stats)
+                elif avg_reward > agent.save_thresholds['avg']:
+                    agent.save_with_stats(episode, aggr_stats)
+                elif min_reward > agent.save_thresholds['worst']:
+                    agent.save_with_stats(episode, aggr_stats)
 
-            #save model periodically just in case
-            #save period defined in settings
-            autosave(episode, agent)
-            ###########################
+            # auto save
+            if episode % agent.autosave_period == 0:
+                agent.save(episode)
 
+            ### training updates ###
             #decay epsilon
-            if s.epsilon > s.min_epsilon:
-                s.epsilon *= s.epsilon_decay
-                s.epsilon = max(s.epsilon, s.min_epsilon)
+            if agent.epsilon > agent.min_epsilon:
+                agent.epsilon *= agent.epsilon_decay
+                agent.epsilon = max(agent.epsilon, agent.min_epsilon)
 
-
-    #if we interrupt training lets still get plots for progress so far
     except KeyboardInterrupt:
+        # keyboard interrupts will stop training but not halt the entire program
+        # this will allow us to plot results for training we have done so far
         pass
 
-    plot_results(episode_rewards, rewards_rolling_avg, aggr_stats_lst, s)
+    # plot results for training
+    plot_results(episode_rewards, rewards_rolling_avg, agent.rolling_avg_min, agent.success_margin, aggr_stats_lst)
+
+    # clean up
     env.close()
-    return
 
 if __name__ == "__main__":
     main()
